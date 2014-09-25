@@ -7,6 +7,7 @@
 //  https://github.com/samvermette/SVWebViewController
 
 #import "SVWebViewController+Private.h"
+#import "UIScreen+SN.h"
 
 @implementation SVWebViewController
 
@@ -109,7 +110,7 @@
 #pragma mark - View lifecycle
 
 - (void)loadView {
-    _mainWebView = [[UIWebView alloc] initWithFrame:[UIScreen mainScreen].bounds];
+    _mainWebView = [[UIWebView alloc] initWithFrame:[UIScreen mainScreenNativeBounds]];
     _mainWebView.delegate = self;
     _mainWebView.scalesPageToFit = YES;
     [self loadURL:self.URL];
