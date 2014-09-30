@@ -7,6 +7,7 @@
 //  https://github.com/samvermette/SVWebViewController
 
 #import "SVWebViewController+Private.h"
+#import "BBlock.h"
 
 @implementation SVWebViewController
 
@@ -57,16 +58,65 @@
     return _actionBarButtonItem;
 }
 
+- (UIAlertController *)pageAlertController {
+    
+    if(!_pageAlertController) {
+        _pageAlertController = [UIAlertController alertControllerWithTitle:self.mainWebView.request.URL.absoluteString message:nil preferredStyle:UIAlertControllerStyleActionSheet];
+        
+        BBlockWeakSelf wself = self;
+        
+        if((self.availableActions & SVWebViewControllerAvailableActionsCopyLink) == SVWebViewControllerAvailableActionsCopyLink){
+            NSString *title = NSLocalizedStringFromTable(@"Copy Link", @"SVWebViewController", @"");
+            UIAlertAction *alertAction = [UIAlertAction actionWithTitle:title style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                [wself handleActionWithTitle:title];
+            }];
+            [_pageAlertController addAction:alertAction];
+        }
+        
+        if((self.availableActions & SVWebViewControllerAvailableActionsOpenInSafari) == SVWebViewControllerAvailableActionsOpenInSafari){
+            NSString *title = NSLocalizedStringFromTable(@"Open in Safari", @"SVWebViewController", @"");
+            UIAlertAction *alertAction = [UIAlertAction actionWithTitle:title style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                [wself handleActionWithTitle:title];
+            }];
+            [_pageAlertController addAction:alertAction];
+        }
+        
+        if([[UIApplication sharedApplication] canOpenURL:[NSURL URLWithString:@"googlechrome://"]] && (self.availableActions & SVWebViewControllerAvailableActionsOpenInChrome) == SVWebViewControllerAvailableActionsOpenInChrome){
+            NSString *title = NSLocalizedStringFromTable(@"Open in Chrome", @"SVWebViewController", @"");
+            UIAlertAction *alertAction = [UIAlertAction actionWithTitle:title style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                [wself handleActionWithTitle:title];
+            }];
+            [_pageAlertController addAction:alertAction];
+        }
+        
+        if([MFMailComposeViewController canSendMail] && (self.availableActions & SVWebViewControllerAvailableActionsMailLink) == SVWebViewControllerAvailableActionsMailLink){
+            NSString *title = NSLocalizedStringFromTable(@"Mail Link to this Page", @"SVWebViewController", @"");
+            UIAlertAction *alertAction = [UIAlertAction actionWithTitle:title style:UIAlertActionStyleDefault handler:^(UIAlertAction *action) {
+                [wself handleActionWithTitle:title];
+            }];
+            [_pageAlertController addAction:alertAction];
+        }
+        
+        NSString *title = NSLocalizedStringFromTable(@"Cancel", @"SVWebViewController", @"");
+        UIAlertAction *cancelAction = [UIAlertAction actionWithTitle:title style:UIAlertActionStyleCancel handler:^(UIAlertAction *action) {
+            [wself handleActionWithTitle:title];
+        }];
+        [_pageAlertController addAction:cancelAction];
+    }
+    
+    return _pageAlertController;
+}
+
 - (UIActionSheet *)pageActionSheet {
     
     if(!_pageActionSheet) {
-        _pageActionSheet = [[UIActionSheet alloc] 
-                        initWithTitle:self.mainWebView.request.URL.absoluteString
-                        delegate:self 
-                        cancelButtonTitle:nil   
-                        destructiveButtonTitle:nil   
-                        otherButtonTitles:nil]; 
-
+        _pageActionSheet = [[UIActionSheet alloc]
+                            initWithTitle:self.mainWebView.request.URL.absoluteString
+                            delegate:self
+                            cancelButtonTitle:nil
+                            destructiveButtonTitle:nil
+                            otherButtonTitles:nil];
+        
         if((self.availableActions & SVWebViewControllerAvailableActionsCopyLink) == SVWebViewControllerAvailableActionsCopyLink)
             [_pageActionSheet addButtonWithTitle:NSLocalizedStringFromTable(@"Copy Link", @"SVWebViewController", @"")];
         
@@ -137,6 +187,7 @@
     _refreshBarButtonItem = nil;
     _stopBarButtonItem = nil;
     _actionBarButtonItem = nil;
+    _pageAlertController = nil;
     _pageActionSheet = nil;
 }
 
@@ -301,15 +352,26 @@
 }
 
 - (void)actionButtonClicked:(id)sender {
-    
-    if(_pageActionSheet)
-        return;
-	
-    if(UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad)
-        [self.pageActionSheet showFromBarButtonItem:self.actionBarButtonItem animated:YES];
-    else
-        [self.pageActionSheet showFromToolbar:self.navigationController.toolbar];
-    
+    if(SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(@"8.0")){
+        if(_pageAlertController)
+            return;
+        
+        UIPopoverPresentationController *popoverController = [self.pageAlertController popoverPresentationController];
+        popoverController.sourceView = self.view;
+        popoverController.barButtonItem = self.actionBarButtonItem;
+        
+        [self presentViewController:self.pageAlertController animated:YES completion:^{
+            self.pageAlertController.popoverPresentationController.passthroughViews = nil;
+        }];
+    }else{
+        if(_pageActionSheet)
+            return;
+        
+        if(UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad)
+            [self.pageActionSheet showFromBarButtonItem:self.actionBarButtonItem animated:YES];
+        else
+            [self.pageActionSheet showFromToolbar:self.navigationController.toolbar];
+    }
 }
 
 - (void)doneButtonClicked:(id)sender {
@@ -324,9 +386,11 @@
 #pragma mark UIActionSheetDelegate
 
 - (void)actionSheet:(UIActionSheet *)actionSheet clickedButtonAtIndex:(NSInteger)buttonIndex {
-	NSString *title = [actionSheet buttonTitleAtIndex:buttonIndex];
-    
-	if([title localizedCompare:NSLocalizedStringFromTable(@"Open in Safari", @"SVWebViewController", @"")] == NSOrderedSame)
+    [self handleActionWithTitle:[actionSheet buttonTitleAtIndex:buttonIndex]];
+}
+
+- (void)handleActionWithTitle:(NSString *)title{
+    if([title localizedCompare:NSLocalizedStringFromTable(@"Open in Safari", @"SVWebViewController", @"")] == NSOrderedSame)
         [[UIApplication sharedApplication] openURL:self.mainWebView.request.URL];
     
     if([title localizedCompare:NSLocalizedStringFromTable(@"Open in Chrome", @"SVWebViewController", @"")] == NSOrderedSame) {
@@ -360,20 +424,21 @@
     
     else if([title localizedCompare:NSLocalizedStringFromTable(@"Mail Link to this Page", @"SVWebViewController", @"")] == NSOrderedSame) {
         
-		MFMailComposeViewController *mailViewController = [[MFMailComposeViewController alloc] init];
+        MFMailComposeViewController *mailViewController = [[MFMailComposeViewController alloc] init];
         
-		mailViewController.mailComposeDelegate = self;
+        mailViewController.mailComposeDelegate = self;
         [mailViewController setSubject:[self.mainWebView stringByEvaluatingJavaScriptFromString:@"document.title"]];
-  		[mailViewController setMessageBody:self.mainWebView.request.URL.absoluteString isHTML:NO];
-		mailViewController.modalPresentationStyle = UIModalPresentationFormSheet;
+        [mailViewController setMessageBody:self.mainWebView.request.URL.absoluteString isHTML:NO];
+        mailViewController.modalPresentationStyle = UIModalPresentationFormSheet;
         
 #if __IPHONE_OS_VERSION_MIN_REQUIRED < 60000
-		[self presentModalViewController:mailViewController animated:YES];
+        [self presentModalViewController:mailViewController animated:YES];
 #else
         [self presentViewController:mailViewController animated:YES completion:NULL];
 #endif
-	}
+    }
     
+    _pageAlertController = nil;
     _pageActionSheet = nil;
 }
 

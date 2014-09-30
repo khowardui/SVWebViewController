@@ -15,6 +15,7 @@
 @property (nonatomic, strong) UIBarButtonItem *refreshBarButtonItem;
 @property (nonatomic, strong) UIBarButtonItem *stopBarButtonItem;
 @property (nonatomic, strong) UIBarButtonItem *actionBarButtonItem;
+@property (nonatomic, strong) UIAlertController *pageAlertController;
 @property (nonatomic, strong) UIActionSheet *pageActionSheet;
 
 @property (nonatomic, strong) UIWebView *mainWebView;
