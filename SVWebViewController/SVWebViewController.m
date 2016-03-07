@@ -7,7 +7,12 @@
 //  https://github.com/samvermette/SVWebViewController
 
 #import "SVWebViewController+Private.h"
-#import "BBlock.h"
+
+@interface SVWebViewController ()
+
+@property (strong, nonatomic) NSString *documentTitle;
+
+@end
 
 @implementation SVWebViewController
 
@@ -63,7 +68,7 @@
     if(!_pageAlertController) {
         _pageAlertController = [UIAlertController alertControllerWithTitle:self.mainWebView.request.URL.absoluteString message:nil preferredStyle:UIAlertControllerStyleActionSheet];
         
-        BBlockWeakSelf wself = self;
+        __typeof(self) __weak wself = self;
         
         if((self.availableActions & SVWebViewControllerAvailableActionsCopyLink) == SVWebViewControllerAvailableActionsCopyLink){
             NSString *title = NSLocalizedStringFromTable(@"Copy Link", @"SVWebViewController", @"");
@@ -229,6 +234,23 @@
     _mainWebView.delegate = nil;
 }
 
+- (void)viewWillLayoutSubviews{
+    [self updateTitleDisplay];
+    NSLog(@"bounds: %@", NSStringFromCGRect(self.view.bounds));
+}
+
+- (void)updateTitleDisplay{
+    if (UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad){
+        if (CGRectGetWidth(self.view.bounds) > 320) {
+            self.navigationItem.title = self.documentTitle;
+        }else{
+            self.navigationItem.title = nil;
+        }
+    }else{
+        self.navigationItem.title = self.documentTitle;
+    }
+}
+
 #pragma mark - Toolbar
 
 - (void)updateToolbarItems {
@@ -326,7 +348,8 @@
 - (void)webViewDidFinishLoad:(UIWebView *)webView {
 	[[UIApplication sharedApplication] setNetworkActivityIndicatorVisible:NO];
     
-    self.navigationItem.title = [webView stringByEvaluatingJavaScriptFromString:@"document.title"];
+    self.documentTitle = [webView stringByEvaluatingJavaScriptFromString:@"document.title"];
+    [self updateTitleDisplay];
     [self updateToolbarItems];
 }
 
@@ -355,26 +378,16 @@
 }
 
 - (void)actionButtonClicked:(id)sender {
-    if(SYSTEM_VERSION_GREATER_THAN_OR_EQUAL_TO(@"8.0")){
-        if(_pageAlertController)
-            return;
-        
-        UIPopoverPresentationController *popoverController = [self.pageAlertController popoverPresentationController];
-        popoverController.sourceView = self.view;
-        popoverController.barButtonItem = self.actionBarButtonItem;
-        
-        [self presentViewController:self.pageAlertController animated:YES completion:^{
-            self.pageAlertController.popoverPresentationController.passthroughViews = nil;
-        }];
-    }else{
-        if(_pageActionSheet)
-            return;
-        
-        if(UI_USER_INTERFACE_IDIOM() == UIUserInterfaceIdiomPad)
-            [self.pageActionSheet showFromBarButtonItem:self.actionBarButtonItem animated:YES];
-        else
-            [self.pageActionSheet showFromToolbar:self.navigationController.toolbar];
-    }
+    if(_pageAlertController)
+        return;
+    
+    UIPopoverPresentationController *popoverController = [self.pageAlertController popoverPresentationController];
+    popoverController.sourceView = self.view;
+    popoverController.barButtonItem = self.actionBarButtonItem;
+    
+    [self presentViewController:self.pageAlertController animated:YES completion:^{
+        self.pageAlertController.popoverPresentationController.passthroughViews = nil;
+    }];
 }
 
 - (void)doneButtonClicked:(id)sender {
